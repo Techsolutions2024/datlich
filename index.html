@@ -1,0 +1,154 @@
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ thống lấy số thứ tự</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        // Import Firebase modules
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getDatabase, ref, push, set, onValue, get, update } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyALscDHNIWUlhVSDCQfyUtQV_mXGGBlDb8",
+            authDomain: "datlich-af6a6.firebaseapp.com",
+            databaseURL: "https://datlich-af6a6-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "datlich-af6a6",
+            storageBucket: "datlich-af6a6.firebasestorage.app",
+            messagingSenderId: "1048497637391",
+            appId: "1:1048497637391:web:9e3f85457fa1aa08ecbb7a",
+            measurementId: "G-DTEDFFQ6KR"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const database = getDatabase(app);
+
+        // DOM elements
+        const getNumberBtn = document.getElementById('getNumberBtn');
+        const currentNumberDisplay = document.getElementById('currentNumber');
+        const yourNumberDisplay = document.getElementById('yourNumber');
+        const statusMessage = document.getElementById('statusMessage');
+
+        // References to Firebase paths
+        const queueRef = ref(database, 'queue');
+        const currentNumberRef = ref(database, 'currentNumber');
+
+        // Initialize current number if not exists
+        get(currentNumberRef).then((snapshot) => {
+            if (!snapshot.exists()) {
+                set(currentNumberRef, 0);
+            }
+        });
+
+        // Listen for current number changes
+        onValue(currentNumberRef, (snapshot) => {
+            const currentNumber = snapshot.val() || 0;
+            currentNumberDisplay.textContent = currentNumber;
+        });
+
+        // Get new number function
+        getNumberBtn.addEventListener('click', async () => {
+            try {
+                getNumberBtn.disabled = true;
+                getNumberBtn.textContent = 'Đang xử lý...';
+
+                // Get current queue
+                const queueSnapshot = await get(queueRef);
+                let lastNumber = 0;
+                
+                if (queueSnapshot.exists()) {
+                    const queueData = queueSnapshot.val();
+                    const numbers = Object.values(queueData).map(item => item.number);
+                    lastNumber = Math.max(...numbers, 0);
+                }
+
+                // Create new number
+                const newNumber = lastNumber + 1;
+                const newTicketRef = push(queueRef);
+                
+                await set(newTicketRef, {
+                    number: newNumber,
+                    timestamp: Date.now(),
+                    status: 'waiting'
+                });
+
+                // Show user's number
+                yourNumberDisplay.textContent = newNumber;
+                statusMessage.textContent = `Bạn đã lấy số ${newNumber}. Vui lòng chờ đến lượt!`;
+                statusMessage.className = 'text-green-600 font-medium';
+
+                // Save to localStorage
+                localStorage.setItem('userNumber', newNumber);
+
+            } catch (error) {
+                console.error('Error getting number:', error);
+                statusMessage.textContent = 'Có lỗi xảy ra. Vui lòng thử lại!';
+                statusMessage.className = 'text-red-600 font-medium';
+            } finally {
+                getNumberBtn.disabled = false;
+                getNumberBtn.textContent = 'Lấy số';
+            }
+        });
+
+        // Check if user has a number in localStorage
+        const savedNumber = localStorage.getItem('userNumber');
+        if (savedNumber) {
+            yourNumberDisplay.textContent = savedNumber;
+            statusMessage.textContent = `Số của bạn: ${savedNumber}. Vui lòng chờ đến lượt!`;
+            statusMessage.className = 'text-blue-600 font-medium';
+        }
+    </script>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">Hệ thống lấy số thứ tự</h1>
+            <p class="text-gray-600">Lấy số online và theo dõi tiến độ phục vụ</p>
+        </div>
+
+        <!-- Main Content -->
+        <div class="max-w-md mx-auto bg-white rounded-lg shadow-lg p-8">
+            <!-- Current Number Display -->
+            <div class="text-center mb-8">
+                <h2 class="text-lg font-semibold text-gray-700 mb-2">Số đang phục vụ</h2>
+                <div class="text-6xl font-bold text-blue-600 mb-2" id="currentNumber">0</div>
+                <p class="text-gray-500">Cập nhật theo thời gian thực</p>
+            </div>
+
+            <!-- Your Number Display -->
+            <div class="text-center mb-8 p-4 bg-gray-50 rounded-lg">
+                <h3 class="text-lg font-semibold text-gray-700 mb-2">Số của bạn</h3>
+                <div class="text-4xl font-bold text-green-600 mb-2" id="yourNumber">--</div>
+                <p class="text-sm text-gray-500" id="statusMessage">Chưa có số</p>
+            </div>
+
+            <!-- Get Number Button -->
+            <div class="text-center">
+                <button 
+                    id="getNumberBtn"
+                    class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg text-lg transition duration-200 shadow-md hover:shadow-lg"
+                >
+                    Lấy số
+                </button>
+            </div>
+
+        </div>
+
+        <!-- Instructions -->
+        <div class="max-w-md mx-auto mt-8 bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold text-gray-700 mb-3">Hướng dẫn sử dụng</h3>
+            <ul class="text-sm text-gray-600 space-y-2">
+                <li>• Nhấn "Lấy số" để nhận số thứ tự mới</li>
+                <li>• Theo dõi số đang phục vụ ở trên</li>
+                <li>• Chờ đến lượt của bạn</li>
+                <li>• Số sẽ được cập nhật tự động</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

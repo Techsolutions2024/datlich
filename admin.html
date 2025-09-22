@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trang quản trị - Hệ thống lấy số</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        // Import Firebase modules
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getDatabase, ref, push, set, onValue, get, update, remove } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyALscDHNIWUlhVSDCQfyUtQV_mXGGBlDb8",
+            authDomain: "datlich-af6a6.firebaseapp.com",
+            databaseURL: "https://datlich-af6a6-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "datlich-af6a6",
+            storageBucket: "datlich-af6a6.firebasestorage.app",
+            messagingSenderId: "1048497637391",
+            appId: "1:1048497637391:web:9e3f85457fa1aa08ecbb7a",
+            measurementId: "G-DTEDFFQ6KR"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const database = getDatabase(app);
+
+        // Admin authentication
+        const ADMIN_PASSWORD = '9999';
+        let isAuthenticated = false;
+
+        // Check if already authenticated
+        if (sessionStorage.getItem('adminAuth') === 'true') {
+            isAuthenticated = true;
+        }
+
+        // DOM elements
+        const loginForm = document.getElementById('loginForm');
+        const adminPanel = document.getElementById('adminPanel');
+        const passwordInput = document.getElementById('passwordInput');
+        const loginBtn = document.getElementById('loginBtn');
+        const currentNumberDisplay = document.getElementById('currentNumber');
+        const nextBtn = document.getElementById('nextBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const queueList = document.getElementById('queueList');
+        const statusMessage = document.getElementById('statusMessage');
+
+        // References to Firebase paths
+        const queueRef = ref(database, 'queue');
+        const currentNumberRef = ref(database, 'currentNumber');
+
+        // Show/hide panels based on authentication
+        function showLoginForm() {
+            loginForm.style.display = 'block';
+            adminPanel.style.display = 'none';
+        }
+
+        function showAdminPanel() {
+            loginForm.style.display = 'none';
+            adminPanel.style.display = 'block';
+        }
+
+        // Initialize UI
+        if (isAuthenticated) {
+            showAdminPanel();
+            initializeAdminFeatures();
+        } else {
+            showLoginForm();
+        }
+
+        // Login function
+        loginBtn.addEventListener('click', () => {
+            const password = passwordInput.value;
+            if (password === ADMIN_PASSWORD) {
+                isAuthenticated = true;
+                sessionStorage.setItem('adminAuth', 'true');
+                showAdminPanel();
+                initializeAdminFeatures();
+                passwordInput.value = '';
+            } else {
+                alert('Mật khẩu không đúng!');
+                passwordInput.value = '';
+            }
+        });
+
+        // Enter key login
+        passwordInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                loginBtn.click();
+            }
+        });
+
+        // Logout function
+        function logout() {
+            isAuthenticated = false;
+            sessionStorage.removeItem('adminAuth');
+            showLoginForm();
+        }
+
+        // Initialize admin features
+        function initializeAdminFeatures() {
+            // Test Firebase connection
+            testFirebaseConnection();
+
+            // Initialize current number if not exists
+            get(currentNumberRef).then((snapshot) => {
+                if (!snapshot.exists()) {
+                    set(currentNumberRef, 0);
+                }
+            }).catch((error) => {
+                console.error('Firebase connection error:', error);
+                statusMessage.textContent = `Lỗi kết nối Firebase: ${error.message}`;
+                statusMessage.className = 'text-red-600 font-medium';
+            });
+
+            // Listen for current number changes
+            onValue(currentNumberRef, (snapshot) => {
+                const currentNumber = snapshot.val() || 0;
+                currentNumberDisplay.textContent = currentNumber;
+            }, (error) => {
+                console.error('Error listening to current number:', error);
+            });
+
+            // Listen for queue changes
+            onValue(queueRef, (snapshot) => {
+                updateQueueList(snapshot.val());
+            }, (error) => {
+                console.error('Error listening to queue:', error);
+            });
+        }
+
+        // Test Firebase connection
+        function testFirebaseConnection() {
+            get(currentNumberRef).then(() => {
+                console.log('Firebase connection successful');
+                statusMessage.textContent = 'Kết nối Firebase thành công';
+                statusMessage.className = 'text-green-600 font-medium';
+            }).catch((error) => {
+                console.error('Firebase connection failed:', error);
+                statusMessage.textContent = `Lỗi kết nối Firebase: ${error.message}`;
+                statusMessage.className = 'text-red-600 font-medium';
+            });
+        }
+
+        // Update queue list
+        function updateQueueList(queueData) {
+            queueList.innerHTML = '';
+            
+            if (!queueData) {
+                queueList.innerHTML = '<p class="text-gray-500 text-center py-4">Không có số nào trong hàng đợi</p>';
+                return;
+            }
+
+            const queueArray = Object.entries(queueData)
+                .map(([key, value]) => ({ id: key, ...value }))
+                .sort((a, b) => a.number - b.number);
+
+            queueArray.forEach(ticket => {
+                const ticketElement = document.createElement('div');
+                ticketElement.className = `flex justify-between items-center p-3 rounded-lg mb-2 ${
+                    ticket.status === 'done' ? 'bg-green-100 text-green-800' : 
+                    ticket.number <= parseInt(currentNumberDisplay.textContent) ? 'bg-blue-100 text-blue-800' :
+                    'bg-gray-100 text-gray-800'
+                }`;
+                
+                ticketElement.innerHTML = `
+                    <div>
+                        <span class="font-bold text-lg">#${ticket.number}</span>
+                        <span class="text-sm ml-2">${new Date(ticket.timestamp).toLocaleTimeString('vi-VN')}</span>
+                    </div>
+                    <div class="text-sm">
+                        ${ticket.status === 'done' ? 'Hoàn thành' : 
+                          ticket.number <= parseInt(currentNumberDisplay.textContent) ? 'Đang phục vụ' : 'Chờ'}
+                    </div>
+                `;
+                
+                queueList.appendChild(ticketElement);
+            });
+        }
+
+        // Next number function
+        nextBtn.addEventListener('click', async () => {
+            try {
+                nextBtn.disabled = true;
+                nextBtn.textContent = 'Đang xử lý...';
+
+                const currentNumber = parseInt(currentNumberDisplay.textContent);
+                const newCurrentNumber = currentNumber + 1;
+
+                console.log('Updating current number to:', newCurrentNumber);
+
+                // Update current number
+                await set(currentNumberRef, newCurrentNumber);
+                console.log('Current number updated successfully');
+
+                // Mark previous number as done
+                const queueSnapshot = await get(queueRef);
+                if (queueSnapshot.exists()) {
+                    const queueData = queueSnapshot.val();
+                    const ticketToUpdate = Object.entries(queueData)
+                        .find(([key, value]) => value.number === currentNumber);
+                    
+                    if (ticketToUpdate) {
+                        const ticketRef = ref(database, `queue/${ticketToUpdate[0]}`);
+                        await update(ticketRef, { status: 'done' });
+                        console.log('Previous ticket marked as done');
+                    }
+                }
+
+                statusMessage.textContent = `Đã chuyển sang số ${newCurrentNumber}`;
+                statusMessage.className = 'text-green-600 font-medium';
+
+            } catch (error) {
+                console.error('Error updating number:', error);
+                console.error('Error details:', error.message);
+                statusMessage.textContent = `Lỗi: ${error.message}`;
+                statusMessage.className = 'text-red-600 font-medium';
+            } finally {
+                nextBtn.disabled = false;
+                nextBtn.textContent = 'Next';
+            }
+        });
+
+        // Reset queue function
+        resetBtn.addEventListener('click', async () => {
+            if (confirm('Bạn có chắc chắn muốn reset hàng đợi? Tất cả số sẽ bị xóa!')) {
+                try {
+                    resetBtn.disabled = true;
+                    resetBtn.textContent = 'Đang reset...';
+
+                    // Reset current number to 0
+                    await set(currentNumberRef, 0);
+
+                    // Clear all queue
+                    await set(queueRef, null);
+
+                    statusMessage.textContent = 'Đã reset hàng đợi thành công';
+                    statusMessage.className = 'text-green-600 font-medium';
+
+                } catch (error) {
+                    console.error('Error resetting queue:', error);
+                    statusMessage.textContent = 'Có lỗi xảy ra khi reset!';
+                    statusMessage.className = 'text-red-600 font-medium';
+                } finally {
+                    resetBtn.disabled = false;
+                    resetBtn.textContent = 'Reset hàng đợi';
+                }
+            }
+        });
+    </script>
+</head>
+<body class="bg-gradient-to-br from-purple-50 to-pink-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">Trang quản trị</h1>
+            <p class="text-gray-600">Quản lý hàng đợi và số thứ tự</p>
+        </div>
+
+        <!-- Login Form -->
+        <div id="loginForm" class="max-w-md mx-auto bg-white rounded-lg shadow-lg p-8">
+            <div class="text-center mb-6">
+                <h2 class="text-2xl font-semibold text-gray-700 mb-2">Đăng nhập Admin</h2>
+                <p class="text-gray-500">Nhập mật khẩu để truy cập trang quản trị</p>
+            </div>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Mật khẩu</label>
+                    <input 
+                        type="password" 
+                        id="passwordInput"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Nhập mật khẩu admin"
+                    >
+                </div>
+                
+                <button 
+                    id="loginBtn"
+                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200"
+                >
+                    Đăng nhập
+                </button>
+            </div>
+            
+            <div class="text-center mt-6">
+                <a 
+                    href="index.html" 
+                    class="text-sm text-gray-500 hover:text-gray-700 underline"
+                >
+                    ← Quay lại trang khách hàng
+                </a>
+            </div>
+        </div>
+
+        <!-- Admin Panel -->
+        <div id="adminPanel" class="max-w-4xl mx-auto" style="display: none;">
+            <!-- Logout Button -->
+            <div class="text-right mb-4">
+                <button 
+                    onclick="logout()"
+                    class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg text-sm transition duration-200"
+                >
+                    Đăng xuất
+                </button>
+            </div>
+            <!-- Current Number and Controls -->
+            <div class="bg-white rounded-lg shadow-lg p-8 mb-8">
+                <div class="text-center mb-6">
+                    <h2 class="text-2xl font-semibold text-gray-700 mb-4">Số đang phục vụ</h2>
+                    <div class="text-8xl font-bold text-blue-600 mb-4" id="currentNumber">0</div>
+                </div>
+
+                <div class="flex justify-center space-x-4 mb-4">
+                    <button 
+                        id="nextBtn"
+                        class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg text-lg transition duration-200 shadow-md hover:shadow-lg"
+                    >
+                        Next
+                    </button>
+                    <button 
+                        id="resetBtn"
+                        class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg text-lg transition duration-200 shadow-md hover:shadow-lg"
+                    >
+                        Reset hàng đợi
+                    </button>
+                </div>
+
+                <div class="text-center">
+                    <p class="text-sm font-medium" id="statusMessage"></p>
+                </div>
+            </div>
+
+            <!-- Queue List -->
+            <div class="bg-white rounded-lg shadow-lg p-8">
+                <h2 class="text-2xl font-semibold text-gray-700 mb-6">Danh sách hàng đợi</h2>
+                <div id="queueList" class="space-y-2">
+                    <p class="text-gray-500 text-center py-4">Đang tải...</p>
+                </div>
+            </div>
+
+            <!-- Instructions -->
+            <div class="mt-8 bg-white rounded-lg shadow p-6">
+                <h3 class="text-lg font-semibold text-gray-700 mb-3">Hướng dẫn quản trị</h3>
+                <ul class="text-sm text-gray-600 space-y-2">
+                    <li>• <strong>Next:</strong> Chuyển sang số tiếp theo trong hàng đợi</li>
+                    <li>• <strong>Reset hàng đợi:</strong> Xóa tất cả số và đặt lại về 0</li>
+                    <li>• Danh sách hiển thị tất cả số đã lấy với trạng thái</li>
+                    <li>• Màu xanh: Đã hoàn thành, Màu xanh dương: Đang phục vụ, Màu xám: Chờ</li>
+                </ul>
+            </div>
+
+            <!-- Back to Customer Page -->
+            <div class="text-center mt-8">
+                <a 
+                    href="index.html" 
+                    class="text-blue-600 hover:text-blue-800 underline font-medium"
+                >
+                    ← Quay lại trang khách hàng
+                </a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
