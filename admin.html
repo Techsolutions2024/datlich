@@ -158,20 +158,32 @@
 
             queueArray.forEach(ticket => {
                 const ticketElement = document.createElement('div');
-                ticketElement.className = `flex justify-between items-center p-3 rounded-lg mb-2 ${
+                ticketElement.className = `flex justify-between items-start p-4 rounded-lg mb-3 ${
                     ticket.status === 'done' ? 'bg-green-100 text-green-800' : 
                     ticket.number <= parseInt(currentNumberDisplay.textContent) ? 'bg-blue-100 text-blue-800' :
                     'bg-gray-100 text-gray-800'
                 }`;
                 
                 ticketElement.innerHTML = `
-                    <div>
-                        <span class="font-bold text-lg">#${ticket.number}</span>
-                        <span class="text-sm ml-2">${new Date(ticket.timestamp).toLocaleTimeString('vi-VN')}</span>
+                    <div class="flex-1">
+                        <div class="flex items-center mb-1">
+                            <span class="font-bold text-lg">#${ticket.number}</span>
+                            <span class="text-sm ml-2 text-gray-500">${new Date(ticket.timestamp).toLocaleTimeString('vi-VN')}</span>
+                        </div>
+                        <div class="text-sm text-gray-600">
+                            <div><strong>Tên:</strong> ${ticket.userName || 'Chưa có thông tin'}</div>
+                            <div><strong>SĐT:</strong> ${ticket.userPhone || 'Chưa có thông tin'}</div>
+                        </div>
                     </div>
-                    <div class="text-sm">
-                        ${ticket.status === 'done' ? 'Hoàn thành' : 
-                          ticket.number <= parseInt(currentNumberDisplay.textContent) ? 'Đang phục vụ' : 'Chờ'}
+                    <div class="text-sm text-right">
+                        <div class="font-medium mb-1">
+                            ${ticket.status === 'done' ? 'Hoàn thành' : 
+                              ticket.number <= parseInt(currentNumberDisplay.textContent) ? 'Đang phục vụ' : 'Chờ'}
+                        </div>
+                        <div class="text-xs text-gray-500">
+                            ${ticket.status === 'done' ? '✅' : 
+                              ticket.number <= parseInt(currentNumberDisplay.textContent) ? '🔄' : '⏳'}
+                        </div>
                     </div>
                 `;
                 
@@ -346,8 +358,9 @@
                 <ul class="text-sm text-gray-600 space-y-2">
                     <li>• <strong>Next:</strong> Chuyển sang số tiếp theo trong hàng đợi</li>
                     <li>• <strong>Reset hàng đợi:</strong> Xóa tất cả số và đặt lại về 0</li>
-                    <li>• Danh sách hiển thị tất cả số đã lấy với trạng thái</li>
-                    <li>• Màu xanh: Đã hoàn thành, Màu xanh dương: Đang phục vụ, Màu xám: Chờ</li>
+                    <li>• Danh sách hiển thị tất cả số đã lấy với thông tin người dùng</li>
+                    <li>• Màu xanh: Đã hoàn thành ✅, Màu xanh dương: Đang phục vụ 🔄, Màu xám: Chờ ⏳</li>
+                    <li>• Mỗi số hiển thị tên và số điện thoại của người đăng ký</li>
                 </ul>
             </div>
 
